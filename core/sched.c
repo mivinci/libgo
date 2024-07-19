@@ -2,8 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "gmp.h"
-#include "runtime.h"
+#include "gmp/gmp.h"
+#include "lock.h"
+#include "sched.h"
 
 static Sched sched;
 
@@ -18,13 +19,11 @@ static void globgpush(G *);
 static G *gfget(void);
 static void gfput(G *);
 static void ready(P *, G *);
-static void lock(Mutex *);
-static void unlock(Mutex *);
+static void lock(Lock *);
+static void unlock(Lock *);
 static void gexit(void);
 
-static Sched_init(void) {
-  
-}
+static Sched_init(void) {}
 
 void schedule(void) {
   G *gp;
@@ -149,9 +148,9 @@ static void ready(P *pp, G *gp) {
   }
 }
 
-static void lock(Mutex *mp) {}
+static void lock(Lock *mp) {}
 
-static void unlock(Mutex *mp) {}
+static void unlock(Lock *mp) {}
 
 static G *gfget(void) {
   G *gp;
@@ -223,3 +222,5 @@ static void gexit(void) {
   gfput(gp);
   schedule();
 }
+
+void GMP_yield(void) {}

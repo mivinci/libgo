@@ -1,10 +1,11 @@
-#ifndef RUNTIME_H
-#define RUNTIME_H
+#ifndef GMP_SCHED_H
+#define GMP_SCHED_H
 
 #include <stddef.h>
 #include <stdint.h>
 
 #include "atomic.h"
+#include "timer.h"
 
 #define G_MAX 256
 
@@ -21,13 +22,10 @@ typedef struct G G;
 typedef struct M M;
 typedef struct P P;
 typedef struct Sched Sched;
-typedef struct Mutex Mutex;
 typedef struct Gobuf Gobuf;
-typedef struct Event Event;
-typedef struct Timers Timers;
 
 struct Sched {
-  Mutex lock;
+  Lock lock;
 
   P *allp;
   int mmax;
@@ -37,33 +35,16 @@ struct Sched {
   int glen;
 
   G *gfree;
-  
+
   atomic_int nextgid;
 };
 
-struct Mutex {
-  
-};
+struct Lock {};
 
 struct Gobuf {
   uintptr_t sp;
   uintptr_t pc;
   uintptr_t arg;
-};
-
-struct Event {
-  int fd;
-  long when;
-  long period;
-  void (*f)(void *, long);
-  void *arg;
-  G *g;
-};
-
-struct Timers {
-  Event **heap;
-  int len;
-  int cap;
 };
 
 struct G {
@@ -88,16 +69,5 @@ struct P {
   int ghead;
   int gtail;
 };
-
-void Timers_init(Timers *);
-uint64_t Timers_check(Timers *);
-
-void Mutex_init(Mutex *);
-void Mutex_lock(Mutex *);
-void Mutex_unlock(Mutex *);
-
-void Poller_init(void);
-G *Poller_poll(uint64_t);
-int Poller_open(Event *);
 
 #endif
