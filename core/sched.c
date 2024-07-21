@@ -7,10 +7,10 @@
 #include "sched.h"
 
 static Sched sched;
+static __thread G *g;
 
-extern void gogo(Gobuf *) asm("gogo");
-extern void gosave(Gobuf *) asm("gosave");
-extern G *getg(void) asm("getg");
+extern void gogo(Gobuf *, void *) asm("gogo");
+extern int gosave(Gobuf *) asm("gosave");
 static G *gget(P *);
 static void gput(P *, G *);
 static G *globgpop(void);
@@ -22,6 +22,10 @@ static void ready(P *, G *);
 static void lock(Lock *);
 static void unlock(Lock *);
 static void gexit(void);
+static void resume(G *);
+
+static G *getg(void) { return g; }
+static void setg(G *gp) { g = gp; }
 
 static Sched_init(void) {}
 
@@ -176,25 +180,27 @@ static void gfput(G *gp) {
 
 void GMP_spawn(GMP_Func f, void *arg, int size, int flags) {
   G *gp;
-  char *sp;
-  void **ra;
+  uintptr_t sp;
 
   gp = gfget();
   if (!gp)
     gp = (G *)malloc(size + sizeof *gp);
   if (!gp)
-    panic("GMP_spawn: out of memory");
+    panic("GMP(spawn): out of memory");
 
   gp->id = atomic_fetch_add(&sched.nextgid, 1);
-  gp->stackguard = gp + 1;
+  gp->stack.la = (uintptr_t)(gp + 1);
+  gp->stack.ha = gp->stack.la + size;
+  gp->arg = arg;
   gp->state = G_IDLE;
+  gp->flags = 0;
   gp->next = 0;
   gp->ev.fd = -1;
   gp->ev.when = -1;
   gp->ev.g = gp;
 
-  sp = (char *)gp->stackguard + size - sizeof(void *);
-  sp = (char *)((uintptr_t)sp & -16L);
+  sp = gp->stack.ha - sizeof(void *);
+  sp = sp & -16L; /* Round down SP by 8 bytes */
 
   /**
    * NOTE: macOS requires the stack to be 16 bytes allgned
@@ -204,12 +210,10 @@ void GMP_spawn(GMP_Func f, void *arg, int size, int flags) {
    */
   sp -= 8;
 
-  ra = (void **)sp;
-  *ra = (void *)gexit;
-
-  gp->ctx.sp = (uintptr_t)sp;
+  gp->ctx.sp = sp;
   gp->ctx.pc = (uintptr_t)f;
-  gp->ctx.arg = (uintptr_t)arg;
+
+  *((void **)sp) = (void *)gexit;
 
   ready(getg()->m->p, gp);
 }
@@ -223,4 +227,49 @@ static void gexit(void) {
   schedule();
 }
 
-void GMP_yield(void) {}
+static G *checkstackgrow(G *gp) {
+  G *newg;
+  size_t size, newsize, newsp, sizeinuse;
+  /* 512 bytes is a good choice to void memory overlap, hopefully */
+  if (gp->ctx.sp - gp->stack.la >= 512)
+    return gp;
+  /* No G stack can be expaned to more than 2MB */
+  size = gp->stack.ha - gp->stack.la;
+  if (size > 0x200000UL)
+    panic("GMP(checkstackgrow): stack overflow");
+  /* Now we do actual stack expansion */
+  sizeinuse = gp->stack.ha - gp->ctx.sp;
+  newsize = size * 2;
+  newg = (G *)malloc(newsize);
+  if (!newg)
+    panic("GMP(checkstackgrow): out of memory");
+  memcpy(newg, gp, sizeof *gp);
+  newg->stack.la = newg + 1;
+  newg->stack.ha = newg->stack.la + newsize;
+  newg->ctx.sp = newg->stack.ha - sizeinuse;
+  memcpy((void *)newg->ctx.sp, (void *)gp->ctx.sp, sizeinuse);
+  free(gp);
+  return newg;
+}
+
+static void resume(G *gp) {
+  /* 
+   * Try if or not we need to expand the G's stack 
+   * before switching to it. 
+   */
+  gp = checkstackgrow(gp);
+  gp->state = G_RUNNING;
+  setg(gp);
+  gogo(&gp->ctx, gp->arg);
+}
+
+void GMP_yield(void) {
+  G *gp;
+
+  gp = getg();
+  if (gosave(&gp->ctx))
+    return;
+  gp->state = G_RUNNABLE;
+  gput(gp->m->p, gp);
+  schedule();
+}

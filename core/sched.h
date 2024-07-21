@@ -23,6 +23,7 @@ typedef struct M M;
 typedef struct P P;
 typedef struct Sched Sched;
 typedef struct Gobuf Gobuf;
+typedef struct Stack Stack;
 
 struct Sched {
   Lock lock;
@@ -39,22 +40,28 @@ struct Sched {
   atomic_int nextgid;
 };
 
-struct Lock {};
-
 struct Gobuf {
   uintptr_t sp;
   uintptr_t pc;
-  uintptr_t arg;
+};
+
+
+/* G stack [la, ha) */
+struct Stack {
+  uintptr_t la;
+  uintptr_t ha;
 };
 
 struct G {
-  void *stackguard;
+  Stack stack;
   G *next;
   M *m;
   int state;
+  int flags;
   int id;
   Event ev;
   Gobuf ctx;
+  void *arg;
 };
 
 struct M {
