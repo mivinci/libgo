@@ -1,7 +1,5 @@
-#include "asm.h"
+#include "stub.h"
 
-function(setg):
-  mov %rdi, %fs:g
 
 /* int gosave(Gobuf *); */
 function(gosave):
@@ -26,13 +24,13 @@ function(gosave):
   ret
 
 
-/* void gogo(Gobuf *, void *); */
+/* void gogo(Gobuf *); */
 function(gogo):
   /* Restore SP */
   mov 0(%rdi), %rdx
   mov %rdx,    %rsp
 
-  /* Take PC */
+  /* Load PC */
   mov 8(%rdi), %rdx
 
   /* Restore callee-saved register */
@@ -43,15 +41,5 @@ function(gogo):
   mov 48(%rdi), %r14
   mov 56(%rdi), %r15
 
-  /* 
-   * If the second argument passed to `gogo` is not zero,
-   * meaning the scheduler is resuming a function for the
-   * first time, then we have to pass that second argument
-   * to the function.
-   */
-  test %rsi, %rsi
-  jz   1f 
-  mov %rsi, %rdi
-1:
   mov $1, %rax
   jmp *%rdx

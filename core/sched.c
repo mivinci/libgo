@@ -5,23 +5,23 @@
 #include "gmp/gmp.h"
 #include "lock.h"
 #include "sched.h"
+#include "stub.h"
 
 static Sched sched;
 static __thread G *g;
 
-extern void gogo(Gobuf *, void *) asm("gogo");
+extern void gogo(Gobuf *) asm("gogo");
 extern int gosave(Gobuf *) asm("gosave");
 static G *gget(P *);
-static void gput(P *, G *);
+static void gput(P *, G *, bool);
 static G *globgpop(void);
 static G *globgget(P *);
 static void globgpush(G *);
 static G *gfget(void);
 static void gfput(G *);
-static void ready(P *, G *);
 static void lock(Lock *);
 static void unlock(Lock *);
-static void gexit(void);
+static void goexit(void);
 static void resume(G *);
 
 static G *getg(void) { return g; }
@@ -41,7 +41,6 @@ void schedule(void) {
 top:
   /* Execute ready timer events */
   ns = Timers_check(&pp->t);
-
   /* Find a runnable G from the global queue every 61 ticks
      to prevent G starvation */
   if (pp->tick % 61 == 0 && sched.glen > 0) {
@@ -51,22 +50,18 @@ top:
     if (gp)
       goto end;
   }
-
   /* Find a runnable G from the local queue */
   gp = gget(pp);
   if (gp)
     goto end;
-
   /* Find a runnable G from the global queue */
   gp = globgget(pp);
   if (gp)
     goto end;
-
   /* Pick out runnable Gs from IO events */
   gp = Poller_poll(ns);
   if (!gp)
     goto top;
-
   /* Put all other runnable Gs into the local queue
      for the next round of scheduling */
   ready(pp, gp->next);
@@ -81,23 +76,41 @@ end:
 static G *gget(P *pp) {
   G *gp;
 
+  gp = pp->nextg;
+  if (gp) {
+    pp->nextg = 0;
+    return gp;
+  }
+
   if (pp->ghead == pp->gtail)
     return 0;
 
   gp = pp->g[pp->ghead];
-  pp->ghead = (pp->ghead + 1) % G_MAX;
+  pp->ghead = (pp->ghead + 1) % len(pp->g);
   return gp;
 }
 
-static void gput(P *pp, G *gp) {
-  if ((pp->gtail + 1) % G_MAX == pp->ghead) {
+static void gput(P *pp, G *gp, bool next) {
+  G *oldnextg;
+
+  if (next)
+    goto put;
+
+  oldnextg = pp->nextg;
+  if (oldnextg) {
+    pp->nextg = gp;
+    gp = oldnextg;
+  }
+
+put:
+  if ((pp->gtail + 1) % len(pp->g) == pp->ghead) {
     lock(&sched.lock);
     globgpush(gp);
     unlock(&sched.lock);
+    return;
   }
-
   pp->g[pp->gtail] = gp;
-  pp->gtail = (pp->gtail + 1) % G_MAX;
+  pp->gtail = (pp->gtail + 1) % len(pp->g);
 }
 
 static void globgpush(G *gp) {
@@ -134,26 +147,18 @@ static G *globgget(P *pp) {
     return 0;
 
   n = sched.glen / sched.mmax;
-  max = G_MAX - (pp->gtail - pp->ghead);
+  max = len(pp->g) - (pp->gtail - pp->ghead);
   if (n > max)
     n = max;
 
   gp = globgpop();
   n--;
   while (n--)
-    gput(pp, globgpop());
+    gput(pp, globgpop(), false);
   return gp;
 }
 
-static void ready(P *pp, G *gp) {
-  for (; gp; gp = gp->next) {
-    gp->state = G_RUNNABLE;
-    gput(pp, gp);
-  }
-}
-
 static void lock(Lock *mp) {}
-
 static void unlock(Lock *mp) {}
 
 static G *gfget(void) {
@@ -168,8 +173,16 @@ static G *gfget(void) {
 }
 
 static void gfput(G *gp) {
+  size_t size;
   if (!gp)
     return;
+
+  /* G freelist can only have standard Gs */
+  size = gp->stack.ha - gp->stack.la;
+  if (size != STK_MIN) {
+    free(gp);
+    return;
+  }
 
   memset(gp, 0, sizeof *gp);
   lock(&sched.lock);
@@ -178,51 +191,52 @@ static void gfput(G *gp) {
   unlock(&sched.lock);
 }
 
-void GMP_spawn(GMP_Func f, void *arg, int size, int flags) {
-  G *gp;
+G *spawn(uintptr_t fn, void *arg, int flags) {
+  G *newg;
   uintptr_t sp;
 
-  gp = gfget();
-  if (!gp)
-    gp = (G *)malloc(size + sizeof *gp);
-  if (!gp)
+  newg = gfget();
+  if (!newg)
+    newg = (G *)malloc(STK_MIN + sizeof *newg);
+  if (!newg)
     panic("GMP(spawn): out of memory");
 
-  gp->id = atomic_fetch_add(&sched.nextgid, 1);
-  gp->stack.la = (uintptr_t)(gp + 1);
-  gp->stack.ha = gp->stack.la + size;
-  gp->arg = arg;
-  gp->state = G_IDLE;
-  gp->flags = 0;
-  gp->next = 0;
-  gp->ev.fd = -1;
-  gp->ev.when = -1;
-  gp->ev.g = gp;
+  lock(&sched.lock);
+  newg->next = sched.allg;
+  sched.allg = newg;
+  unlock(&sched.lock);
 
-  sp = gp->stack.ha - sizeof(void *);
-  sp = sp & -16L; /* Round down SP by 8 bytes */
+  newg->id = atomic_fetch_add(&sched.nextgid, 1);
+  newg->stack.la = (uintptr_t)(newg + 1);
+  newg->stack.ha = newg->stack.la + STK_MIN;
+  newg->arg = arg;
+  newg->state = G_IDLE;
+  newg->flags = flags;
+  newg->next = 0;
+  newg->ev.fd = -1;
+  newg->ev.when = -1;
+  newg->ev.g = newg;
 
-  /**
-   * NOTE: macOS requires the stack to be 16 bytes allgned
-   * on 64-bit machines, so we have to leave 8 bytes for
-   * instruction `push %rbp` that happens at the beginning
-   * of each coroutine.
-   */
-  sp -= 8;
+  sp = newg->stack.ha - PTR_SIZE; /* Leave space for the return address */
+  sp = align_down(sp, STK_ALIGN);
+  *((void **)sp) = goexit;
 
-  gp->ctx.sp = sp;
-  gp->ctx.pc = (uintptr_t)f;
-
-  *((void **)sp) = (void *)gexit;
-
-  ready(getg()->m->p, gp);
+  newg->ctx.sp = sp;
+  newg->ctx.pc = fn;
+  return newg;
 }
 
-static void gexit(void) {
+void GMP_spawn(GMP_Func f, void *arg, int flags) {
+  G *newg;
+  newg = spawn((uintptr_t)f, arg, flags);
+  gput(getg()->m->p, newg, true);
+}
+
+static void goexit(void) {
   G *gp;
 
   gp = getg();
-  gp->state = G_DEAD;
+  gp->state = G_IDLE;
   gfput(gp);
   schedule();
 }
@@ -253,14 +267,14 @@ static G *checkstackgrow(G *gp) {
 }
 
 static void resume(G *gp) {
-  /* 
-   * Try if or not we need to expand the G's stack 
-   * before switching to it. 
+  /*
+   * Try if or not we need to expand the G's stack
+   * before switching to it.
    */
   gp = checkstackgrow(gp);
   gp->state = G_RUNNING;
   setg(gp);
-  gogo(&gp->ctx, gp->arg);
+  gogo(&gp->ctx);
 }
 
 void GMP_yield(void) {
@@ -270,6 +284,6 @@ void GMP_yield(void) {
   if (gosave(&gp->ctx))
     return;
   gp->state = G_RUNNABLE;
-  gput(gp->m->p, gp);
+  gput(gp->m->p, gp, false);
   schedule();
 }

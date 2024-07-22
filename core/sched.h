@@ -3,11 +3,10 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "atomic.h"
 #include "timer.h"
-
-#define G_MAX 256
 
 #define G_IDLE 0
 #define G_RUNNABLE 1
@@ -28,6 +27,7 @@ typedef struct Stack Stack;
 struct Sched {
   Lock lock;
 
+  G *allg;
   P *allp;
   int mmax;
 
@@ -44,7 +44,6 @@ struct Gobuf {
   uintptr_t sp;
   uintptr_t pc;
 };
-
 
 /* G stack [la, ha) */
 struct Stack {
@@ -72,7 +71,8 @@ struct M {
 struct P {
   Timers t;
   uint64_t tick;
-  G *g[G_MAX];
+  G *nextg;
+  G *g[256];
   int ghead;
   int gtail;
 };

@@ -7,14 +7,12 @@
 #define GMP_EXPORT
 #endif
 
-#define GMP_PREEMPTIVE 1
-
-#define GMP_go(f, a) GMP_spawn((void *)f, (void *)a, 4096, 0)
+#define GMP_go(f, a) GMP_spawn((void *)f, (void *)a, 0)
 
 typedef void (*GMP_Func)(void *);
 
 GMP_EXPORT void GMP_init(int);
-GMP_EXPORT void GMP_spawn(GMP_Func, void *, int, int);
+GMP_EXPORT void GMP_spawn(GMP_Func, void *, int);
 GMP_EXPORT void GMP_yield(void);
 
 #endif
