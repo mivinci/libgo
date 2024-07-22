@@ -1,4 +1,4 @@
-.text
 .globl go
 go:
-  br x0
+  mov %rsi, %rsp
+  jmp *%rdi
