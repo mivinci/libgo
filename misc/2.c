@@ -11,9 +11,12 @@ void goexit(void) {
 void f() {}
 
 int main(void) {
-  uintptr_t sp = (uintptr_t)malloc(1024);
+  uintptr_t top, sp;
+  
+  top = (uintptr_t)malloc(1024);
+  sp = top + 1024;
   sp -= sizeof(void *);
-  sp = sp & (~7);
+  sp = sp & (~15);
   *(void **)sp = goexit;
   go(f, sp);
 }

@@ -1,53 +1,39 @@
-#include "stub.h"
-
 /* int gosave(Gobuf *); */
-function(gosave):
-  /* Save PC */
+.text
+.globl gosave
+gosave:
+  mov %rsp, 0(%rdi)
   mov (%rsp), %rdx
   mov %rdx, 8(%rdi)
 
-  /* 
-   * Instead of doing many `push`s, each of which does 
-   * one SP increment and one data movement, we allocate
-   * the stack once for all movements.
-   */
-  sub %rsp, $48
+  mov 16(%rdi), %rdx
 
-  /* Save callee-saved registers */
-  mov %rbx,  0(%rsp)
-  mov %rbp,  8(%rsp)
-  mov %r12, 16(%rsp)
-  mov %r13, 24(%rsp)
-  mov %r14, 32(%rsp)
-  mov %r15, 40(%rsp)
+  mov %rbx,  0(%rdx)
+  mov %rbp,  8(%rdx)
+  mov %r12, 16(%rdx)
+  mov %r13, 24(%rdx)
+  mov %r14, 32(%rdx)
+  mov %r15, 40(%rdx)
 
-  /* Save SP */
-  mov %rsp, (%rdi)
-
-  /* Always return 0 */
   xor %rax, %rax
   ret
 
 
 /* void gogo(Gobuf *); */
-function(gogo):
-  /* Restore SP */
+.text
+.globl gogo
+gogo:
   mov (%rdi), %rsp
+  mov 16(%rdi), %rdx
 
-  /* Restore callee-saved registers */
-  mov 40(%rsp), %r15
-  mov 32(%rsp), %r14
-  mov 24(%rsp), %r13
-  mov 16(%rsp), %r12
-  mov  8(%rsp), %rbp
-  mov  0(%rsp), %rbx
+  mov 40(%rdx), %r15
+  mov 32(%rdx), %r14
+  mov 24(%rdx), %r13
+  mov 16(%rdx), %r12
+  mov  8(%rdx), %rbp
+  mov  0(%rdx), %rbx
 
-  /* Restore the stack to where `gosave` is called */
-  add %rsp, $48
-
-  /* Return 1 for `gosave` */
   mov $1, %rax
 
-  /* Restore PC */
   mov 8(%rdi), %rdx
   jmp *%rdx

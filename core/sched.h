@@ -1,11 +1,12 @@
 #ifndef GMP_SCHED_H
 #define GMP_SCHED_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
 
 #include "atomic.h"
+#include "list.h"
 #include "timer.h"
 
 #define G_IDLE 0
@@ -27,7 +28,7 @@ typedef struct Stack Stack;
 struct Sched {
   Lock lock;
 
-  G *allg;
+  struct list_head allg;
   P *allp;
   int mmax;
 
@@ -43,6 +44,7 @@ struct Sched {
 struct Gobuf {
   uintptr_t sp;
   uintptr_t pc;
+  uintptr_t ctx;
 };
 
 /* G stack [la, ha) */
@@ -59,12 +61,13 @@ struct G {
   int flags;
   int id;
   Event ev;
-  Gobuf ctx;
+  Gobuf buf;
   void *arg;
+  struct list_head link;
 };
 
 struct M {
-  int tid;
+  int thread;
   P *p;
 };
 

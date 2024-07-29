@@ -3,9 +3,10 @@
 #include <string.h>
 
 #include "gmp/gmp.h"
+
+#include "core.h"
 #include "lock.h"
 #include "sched.h"
-#include "stub.h"
 
 static Sched sched;
 static __thread G *g;
@@ -27,7 +28,24 @@ static void resume(G *);
 static G *getg(void) { return g; }
 static void setg(G *gp) { g = gp; }
 
-static Sched_init(void) {}
+static void Sched_init(int np) {
+  if (!np)
+    panic("GMP(Sched_init): zero P");
+
+  Lock_init(&sched.lock);
+
+  sched.allp = (P *)malloc(np * sizeof(P));
+  if (sched.allp)
+    panic("GMP(Sched_init): malloc");
+
+  list_head_init(&sched.allg);
+  sched.mmax = np;
+  sched.ghead = 0;
+  sched.gtail = 0;
+  sched.glen = 0;
+  sched.gfree = 0;
+  sched.nextgid = ATOMIC_VAR_INIT(0);
+}
 
 void schedule(void) {
   G *gp;
@@ -180,6 +198,7 @@ static void gfput(G *gp) {
   /* G freelist can only have standard Gs */
   size = gp->stack.ha - gp->stack.la;
   if (size != STK_MIN) {
+    list_del(&gp->link);
     free(gp);
     return;
   }
@@ -191,23 +210,23 @@ static void gfput(G *gp) {
   unlock(&sched.lock);
 }
 
-G *spawn(uintptr_t fn, void *arg, int flags) {
+static G *spawn(uintptr_t fn, void *arg, int flags) {
   G *newg;
   uintptr_t sp;
 
   newg = gfget();
   if (!newg)
-    newg = (G *)malloc(STK_MIN + sizeof *newg);
+    newg = (G *)malloc(STK_MIN + CTX_MAX + sizeof *newg);
   if (!newg)
     panic("GMP(spawn): out of memory");
 
   lock(&sched.lock);
-  newg->next = sched.allg;
-  sched.allg = newg;
+  list_add(&newg->link, &sched.allg);
   unlock(&sched.lock);
 
   newg->id = atomic_fetch_add(&sched.nextgid, 1);
-  newg->stack.la = (uintptr_t)(newg + 1);
+  newg->buf.ctx = (uintptr_t)(newg + 1);
+  newg->stack.la = newg->buf.ctx + CTX_MAX;
   newg->stack.ha = newg->stack.la + STK_MIN;
   newg->arg = arg;
   newg->state = G_IDLE;
@@ -221,8 +240,8 @@ G *spawn(uintptr_t fn, void *arg, int flags) {
   sp = align_down(sp, STK_ALIGN);
   *((void **)sp) = goexit;
 
-  newg->ctx.sp = sp;
-  newg->ctx.pc = fn;
+  newg->buf.sp = sp;
+  newg->buf.pc = fn;
   return newg;
 }
 
@@ -236,7 +255,7 @@ static void goexit(void) {
   G *gp;
 
   gp = getg();
-  gp->state = G_IDLE;
+  gp->state = G_DEAD;
   gfput(gp);
   schedule();
 }
@@ -245,23 +264,24 @@ static G *checkstackgrow(G *gp) {
   G *newg;
   size_t size, newsize, newsp, sizeinuse;
   /* 512 bytes is a good choice to void memory overlap, hopefully */
-  if (gp->ctx.sp - gp->stack.la >= 512)
+  if (gp->buf.sp - gp->stack.la >= 512)
     return gp;
   /* No G stack can be expaned to more than 2MB */
   size = gp->stack.ha - gp->stack.la;
-  if (size > 0x200000UL)
+  if (size > 0x200000UL) /* 2MB */
     panic("GMP(checkstackgrow): stack overflow");
   /* Now we do actual stack expansion */
-  sizeinuse = gp->stack.ha - gp->ctx.sp;
+  sizeinuse = gp->stack.ha - gp->buf.sp;
   newsize = size * 2;
   newg = (G *)malloc(newsize);
   if (!newg)
     panic("GMP(checkstackgrow): out of memory");
   memcpy(newg, gp, sizeof *gp);
-  newg->stack.la = newg + 1;
+  newg->buf.ctx = newg + 1;
+  newg->stack.la = newg->buf.ctx + CTX_MAX;
   newg->stack.ha = newg->stack.la + newsize;
-  newg->ctx.sp = newg->stack.ha - sizeinuse;
-  memcpy((void *)newg->ctx.sp, (void *)gp->ctx.sp, sizeinuse);
+  newg->buf.sp = newg->stack.ha - sizeinuse;
+  memcpy((void *)newg->buf.sp, (void *)gp->buf.sp, sizeinuse);
   free(gp);
   return newg;
 }
@@ -274,14 +294,14 @@ static void resume(G *gp) {
   gp = checkstackgrow(gp);
   gp->state = G_RUNNING;
   setg(gp);
-  gogo(&gp->ctx);
+  gogo(&gp->buf);
 }
 
 void GMP_yield(void) {
   G *gp;
 
   gp = getg();
-  if (gosave(&gp->ctx))
+  if (gosave(&gp->buf))
     return;
   gp->state = G_RUNNABLE;
   gput(gp->m->p, gp, false);
