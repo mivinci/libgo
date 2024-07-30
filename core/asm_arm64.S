@@ -1,4 +1,4 @@
-/* int gosave(Gobuf *); setjmp */
+/* int gosave(Gobuf *); aka. setjmp */
 .text
 .globl gosave
 gosave:
@@ -18,7 +18,7 @@ gosave:
   ret
 
 
-/* void gogo(Gobuf *); longjmp */
+/* void gogo(Gobuf *); aka. longjmp */
 .text
 .globl gogo
 gogo:
@@ -37,3 +37,20 @@ gogo:
   mov x0, #1
   br  x2
 
+
+/* void goinit(Gobuf *) */
+.text
+.globl goinit
+goinit:
+  ldr x1, [x0, #16] /* Gobuf.ctx */
+  mov x2, goexit
+  stp x29, x2, [x1, #80]
+  ret
+
+
+/* void goexit(void) */
+.text
+.globl goexit
+goexit:
+  mov x0, #0
+  bl GMP_exit

@@ -14,5 +14,6 @@ typedef void (*GMP_Func)(void *);
 GMP_EXPORT void GMP_init(int);
 GMP_EXPORT void GMP_spawn(GMP_Func, void *, int);
 GMP_EXPORT void GMP_yield(void);
+GMP_EXPORT void GMP_exit(int);
 
 #endif

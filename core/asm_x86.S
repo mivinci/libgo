@@ -37,3 +37,20 @@ gogo:
 
   mov 8(%rdi), %rdx
   jmp *%rdx
+
+
+/* void goinit(Gobuf *) */
+.text
+.globl goinit
+goinit:
+  mov (%rdi), %rdx /* Gobuf.sp */
+  mov $goexit, (%rdx)
+  ret
+
+
+/* void goexit(void) */
+.text
+.globl goexit
+goexit:
+  xor  %rdi, %rdi
+  call GMP_exit

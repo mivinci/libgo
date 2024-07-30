@@ -11,6 +11,7 @@
 static Sched sched;
 static __thread G *g;
 
+extern void goinit(Gobuf *) asm("goinit");
 extern void gogo(Gobuf *) asm("gogo");
 extern int gosave(Gobuf *) asm("gosave");
 static G *gget(P *);
@@ -238,10 +239,9 @@ static G *spawn(uintptr_t fn, void *arg, int flags) {
 
   sp = newg->stack.ha - PTR_SIZE; /* Leave space for the return address */
   sp = align_down(sp, STK_ALIGN);
-  *((void **)sp) = goexit;
-
   newg->buf.sp = sp;
   newg->buf.pc = fn;
+  goinit(&newg->buf);
   return newg;
 }
 
@@ -251,9 +251,10 @@ void GMP_spawn(GMP_Func f, void *arg, int flags) {
   gput(getg()->m->p, newg, true);
 }
 
-static void goexit(void) {
+void GMP_exit(int status) {
   G *gp;
 
+  (void)(status);
   gp = getg();
   gp->state = G_DEAD;
   gfput(gp);

@@ -32,7 +32,15 @@
 #define PTR_SIZE (sizeof(void *))
 #define STK_ALIGN 16
 #define STK_MIN 2048
-#define CTX_MAX 128
 
+#if defined(Arch_arm64)
+#define CTX_MAX 80
+#elif defined(Arch_riscv)
+#define CTX_MAX 88
+#elif defined(Arch_x86_64)
+#define CTX_MAX 40
+#else
+#define CTX_MAX 128
+#endif
 
 #endif /* GMP_CORE_H */
