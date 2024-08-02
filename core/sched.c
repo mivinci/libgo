@@ -278,6 +278,7 @@ static G *checkstackgrow(G *gp) {
   if (!newg)
     panic("GMP(checkstackgrow): out of memory");
   memcpy(newg, gp, sizeof *gp);
+  memcpy(newg+1, gp+1, CTX_MAX);
   newg->buf.ctx = newg + 1;
   newg->stack.la = newg->buf.ctx + CTX_MAX;
   newg->stack.ha = newg->stack.la + newsize;
