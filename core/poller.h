@@ -3,8 +3,9 @@
 
 #include "sched.h"
 
+
 void Poller_init(void);
-G *Poller_poll(uint64_t);
+G *Poller_poll(long);
 int Poller_open(Event *);
 
 #endif

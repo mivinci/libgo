@@ -6,7 +6,9 @@
 #include <stdint.h>
 
 #include "atomic.h"
+#include "event.h"
 #include "list.h"
+#include "lock.h"
 #include "timer.h"
 
 #define G_IDLE 0

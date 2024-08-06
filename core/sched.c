@@ -6,14 +6,21 @@
 
 #include "core.h"
 #include "lock.h"
+#include "poller.h"
 #include "sched.h"
+
+#define panic(...)                                                             \
+  do {                                                                         \
+    traceback();                                                               \
+  } while (0)
 
 static Sched sched;
 static __thread G *g;
 
-extern void goinit(Gobuf *) asm("goinit");
-extern void gogo(Gobuf *) asm("gogo");
-extern int gosave(Gobuf *) asm("gosave");
+extern void goinit(Gobuf *);
+extern void gogo(Gobuf *);
+extern int gosave(Gobuf *);
+extern void goexit(void);
 static G *gget(P *);
 static void gput(P *, G *, bool);
 static G *globgpop(void);
@@ -23,8 +30,9 @@ static G *gfget(void);
 static void gfput(G *);
 static void lock(Lock *);
 static void unlock(Lock *);
-static void goexit(void);
 static void resume(G *);
+static void ready(P *, G *);
+static void traceback();
 
 static G *getg(void) { return g; }
 static void setg(G *gp) { g = gp; }
@@ -45,14 +53,14 @@ static void Sched_init(int np) {
   sched.gtail = 0;
   sched.glen = 0;
   sched.gfree = 0;
-  sched.nextgid = ATOMIC_VAR_INIT(0);
+  atomic_init(&sched.nextgid, 0);
 }
 
 void schedule(void) {
   G *gp;
   M *mp;
   P *pp;
-  uint64_t ns;
+  long ns;
 
   mp = getg()->m;
   pp = mp->p;
@@ -261,9 +269,11 @@ void GMP_exit(int status) {
   schedule();
 }
 
+static void ready(P *pp, G *gp) {}
+
 static G *checkstackgrow(G *gp) {
   G *newg;
-  size_t size, newsize, newsp, sizeinuse;
+  size_t size, newsize, sizeinuse;
   /* 512 bytes is a good choice to void memory overlap, hopefully */
   if (gp->buf.sp - gp->stack.la >= 512)
     return gp;
@@ -278,8 +288,8 @@ static G *checkstackgrow(G *gp) {
   if (!newg)
     panic("GMP(checkstackgrow): out of memory");
   memcpy(newg, gp, sizeof *gp);
-  memcpy(newg+1, gp+1, CTX_MAX);
-  newg->buf.ctx = newg + 1;
+  memcpy(newg + 1, gp + 1, CTX_MAX);
+  newg->buf.ctx = (uintptr_t)(newg + 1);
   newg->stack.la = newg->buf.ctx + CTX_MAX;
   newg->stack.ha = newg->stack.la + newsize;
   newg->buf.sp = newg->stack.ha - sizeinuse;
@@ -309,3 +319,16 @@ void GMP_yield(void) {
   gput(gp->m->p, gp, false);
   schedule();
 }
+
+static void traceback() {}
+
+void GMP_init(int flags) {
+  Sched_init(1);
+}
+
+
+#ifdef TEST
+#include "utest.h"
+
+
+#endif

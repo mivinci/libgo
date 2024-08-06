@@ -1,6 +1,6 @@
-#include "core.h"
+#include "timer.h"
 
 
-uint64_t Timers_check(Timers *tp) {
+long Timers_check(Timers *tp) {
   return 0;
 }

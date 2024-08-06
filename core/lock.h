@@ -18,7 +18,7 @@
                                         memory_order_acquire)
 typedef atomic_int Lock;
 
-void Lock_init(Lock *p) { *p = ATOMIC_VAR_INIT(UNLOCKED); }
+void Lock_init(Lock *p) { atomic_init(p, UNLOCKED); }
 
 void Lock_lock(Lock *p) {
   int old, i;
@@ -41,7 +41,7 @@ void Lock_lock(Lock *p) {
 }
 
 void Lock_unlock(Lock *p) {
-  atomic_store_explicit(p, UNLOCKED, memory_order_acquire);
+  atomic_store(p, UNLOCKED);
 }
 #endif /* USE_PTHREAD */
 #endif /* GMP_LOCK_H */

@@ -43,7 +43,7 @@ gogo:
 .globl goinit
 goinit:
   ldr x1, [x0, #16] /* Gobuf.ctx */
-  mov x2, goexit
+  ldr x2, =goexit
   stp x29, x2, [x1, #80]
   ret
 

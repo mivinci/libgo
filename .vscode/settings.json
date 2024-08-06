@@ -1,9 +1,0 @@
-{
-  "C_Cpp.default.includePath": [
-    "include"
-  ],
-  "C_Cpp.default.compilerPath": "/usr/bin/clang",
-  "files.associations": {
-    "core.h": "c"
-  },
-}
