@@ -32,7 +32,7 @@ struct Sched {
 
   struct list_head allg;
   P *allp;
-  int mmax;
+  int ncpu;
 
   G *ghead;
   G *gtail;

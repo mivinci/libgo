@@ -44,7 +44,8 @@ gogo:
 .globl goinit
 goinit:
   mov (%rdi), %rdx /* Gobuf.sp */
-  mov $goexit, (%rdx)
+  lea goexit(%rip), %rax
+  mov %rax, (%rdx)
   ret
 
 

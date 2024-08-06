@@ -8,11 +8,15 @@ objects := \
 	sched.o
 
 ifeq ($(SYS), Darwin)
-	objects += poller_kqueue.o
+	objects += \
+		poller_kqueue.o \
+		sys_darwin.o
 endif
 
 ifeq ($(SYS), Linux)
-	objects += poller_epoll.o
+	objects += \
+		poller_epoll.o \
+		sys_linux.o
 endif
 
 CFLAGS += -I../include
@@ -20,9 +24,8 @@ CFLAGS += -I../include
 target := libcore.a
 ifdef TEST
 	target  = test.out
-	tests   := $(wildcard *_test.c)
+	tests   := $(wildcard *test.c)
 	objects += $(tests:.c=.o)
-	CFLAGS  += -I../libs/utest.h
 endif
 
 
@@ -34,7 +37,7 @@ libcore.a: $(objects)
 
 
 test.out: $(headers) libcore.a
-	$(CC) $(CFLAGS) -o $@ libcore.a
+	$(CC) $(CFLAGS) -o $@ -L. -lcore
 
 
 .PHONY: clean

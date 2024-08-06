@@ -8,6 +8,7 @@
 #include "lock.h"
 #include "poller.h"
 #include "sched.h"
+#include "sys.h"
 
 #define panic(...)                                                             \
   do {                                                                         \
@@ -36,25 +37,6 @@ static void traceback();
 
 static G *getg(void) { return g; }
 static void setg(G *gp) { g = gp; }
-
-static void Sched_init(int np) {
-  if (!np)
-    panic("GMP(Sched_init): zero P");
-
-  Lock_init(&sched.lock);
-
-  sched.allp = (P *)malloc(np * sizeof(P));
-  if (sched.allp)
-    panic("GMP(Sched_init): malloc");
-
-  list_head_init(&sched.allg);
-  sched.mmax = np;
-  sched.ghead = 0;
-  sched.gtail = 0;
-  sched.glen = 0;
-  sched.gfree = 0;
-  atomic_init(&sched.nextgid, 0);
-}
 
 void schedule(void) {
   G *gp;
@@ -173,7 +155,7 @@ static G *globgget(P *pp) {
   if (sched.glen == 0)
     return 0;
 
-  n = sched.glen / sched.mmax;
+  n = sched.glen / sched.ncpu;
   max = len(pp->g) - (pp->gtail - pp->ghead);
   if (n > max)
     n = max;
@@ -323,13 +305,23 @@ void GMP_yield(void) {
 static void traceback() {}
 
 void GMP_init(int flags) {
-  Sched_init(1);
+  int ncpu;
+
+  ncpu = sys_ncpu();
+  if (ncpu < 0)
+    panic("GMP_init(sys_ncpu)");
+
+  Lock_init(&sched.lock);
+
+  sched.allp = (P *)malloc(1 * sizeof(P));
+  if (sched.allp)
+    panic("GMP(Sched_init): malloc");
+
+  list_head_init(&sched.allg);
+  sched.ncpu = ncpu;
+  sched.ghead = 0;
+  sched.gtail = 0;
+  sched.glen = 0;
+  sched.gfree = 0;
+  atomic_init(&sched.nextgid, 0);
 }
-
-
-#ifdef TEST
-#include "utest.h"
-
-
-
-#endif
