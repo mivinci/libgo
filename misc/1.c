@@ -1,6 +1,5 @@
-#include <stdio.h>
+extern void foo() __asm__("foo");
 
-int main(int argc, char **argv) {
-  printf("argc=%d, argv=%p\n", argc, argv);
-  return 0;
+int bar() {
+  foo();
 }

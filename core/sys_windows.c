@@ -2,7 +2,7 @@
 
 #include "sys.h"
 
-void sys_init(void) {
+void setup_sys(void) {
   // TODO:
 }
 

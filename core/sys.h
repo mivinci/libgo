@@ -5,9 +5,16 @@
 extern "C" {
 #endif
 
-void sys_init(void);
+#include "lock.h"
+
+void Lock_init(Lock *);
+void Lock_acquire(Lock *);
+void Lock_release(Lock *);
+
+void setup_sys(void);
 int sys_ncpu(void);
 int sys_spawn(void(*)(), int);
+int sys_tid(void);
 
 #ifdef __cplusplus
 };

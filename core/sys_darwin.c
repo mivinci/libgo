@@ -1,8 +1,9 @@
 #include <sys/sysctl.h>
+#include <pthread.h>
 
 #include "sys.h"
 
-void sys_init(void) {
+void setup_sys(void) {
 
 }
 
@@ -20,5 +21,9 @@ int sys_ncpu(void) {
 
 int sys_spawn(void(*f)(), int siz) {
   // TODO:
+  return 0;
+}
+
+int sys_tid(void) {
   return 0;
 }

@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "include/go/core.h"
+#include "go/core.h"
 
 int Go_main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
