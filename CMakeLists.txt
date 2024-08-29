@@ -1,5 +1,8 @@
-cmake_minimum_required(VERSION 3.28)
+cmake_minimum_required(VERSION 3.26)
 project(libgo)
+
+string(TOLOWER ${CMAKE_SYSTEM_NAME} GOSYS)
+string(TOLOWER ${CMAKE_SYSTEM_PROCESSOR} GOARCH)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -8,8 +11,7 @@ file(GLOB_RECURSE test_sources "**/*_test.c++")
 
 add_library(go SHARED ${headers})
 add_subdirectory(core)
-add_subdirectory(net)
-target_link_libraries(go core net)
+target_link_libraries(go core)
 set_target_properties(go PROPERTIES LINKER_LANGUAGE C)
 
 find_package(GTest CONFIG REQUIRED)

@@ -2,7 +2,7 @@
 
 #include "sys.h"
 
-TEST(sys_darwin, positive) {
+TEST(sys, sys_ncpu) {
   int n = sys_ncpu();
   EXPECT_GT(n, 0);
 }
