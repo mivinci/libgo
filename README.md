@@ -6,6 +6,7 @@ A Go-like multi-thread asynchronous runtime.
 
 - [cmake](https://cmake.org)
 - [googletest](https://github.com/google/googletest)
+- [vcpkg](https://vcpkg.io/) - *Windows Only*
 
 
 ## Build

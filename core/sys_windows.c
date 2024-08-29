@@ -1,12 +1,15 @@
+#include <windows.h>
+
 #include "sys.h"
 
 void sys_init(void) {
-
+  // TODO:
 }
 
 int sys_ncpu(void) {
-  // TODO:
-  return 0;
+  SYSTEM_INFO si;
+  GetSystemInfo(&si);
+  return si.dwNumberOfProcessors;
 }
 
 int sys_spawn(void(*f)(), int siz) {
