@@ -40,6 +40,7 @@ extern "C" {
 
 #define GOADDX(p, v) __sync_fetch_and_add(p, v)
 #define GOCAS(p, v0, v1) __sync_bool_compare_and_swap(p, v0, v1)
+#define GOLOADX() 
 
 #define GOASSERT(e, ...) do {                                  \
   if (!(e)) Go_throw(__FILE__, __LINE__, "assert: "__VA_ARGS__); \

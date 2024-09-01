@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "atomic.h"
 #include "sys.h"
 
 __thread G *g;  // Current G running
@@ -35,7 +36,7 @@ static P *pidleget(void);
 static void pidleput(P *);
 
 // Set up and bind g0 with m0, called at asm_xxx.s
-void setup_g0m0(uintptr_t sp) {
+void setup_g0m0(uintptr sp) {
   // Setup g0 stack
   g0.stack.ha = sp;
   g0.stack.la = sp - (8 * 1024);  // 8KB
@@ -139,7 +140,53 @@ static void gfput(P *p, G *gp) {
   p->ngfree++;
 }
 
-static void gput(P *p, G *gp) {}
+static G *globgget(void) {
+  G *gp;
+
+  // TODO:
+  return gp;
+}
+
+// Put a G on the global G queue.
+// When calling, sched.lock MUST be held.
+static void globgput(G *gp) {
+  gp->next = NULL;
+  if (sched.gtail)
+    sched.gtail->next = gp;
+  else
+    sched.ghead = gp;
+  sched.gtail = gp;
+  sched.ng++;
+}
+
+// Try put a G on a local G queue.
+// If it's full, put onto the global G queue.
+// Executed only by the owner P.
+static void gput(P *p, G *gp) {
+  int h, t;
+
+  h = Atomic_load(&p->ghead);
+  t = p->gtail;
+  if (t - h < LEN(p->g)) {
+    p->g[t % LEN(p->g)] = gp;
+    Atomic_store(&p->gtail, t + 1);
+    return;
+  }
+  // TODO: Put gp on global G queue
+}
+
+static G *gget(P *p) {
+  G *gp;
+  int h, t;
+
+  for (;;) {
+    h = Atomic_load(&p->ghead);
+    t = p->gtail;
+    if (t == h) return NULL;
+    gp = p->g[h & LEN(p->g)];
+    if (Atomic_cas(&p->ghead, h, h + 1)) return gp;
+  }
+}
 
 static void allgadd(G *gp) {
   Lock_acquire(&allglock);
@@ -157,8 +204,8 @@ static G *malg(int size) {
   GOASSERT(newg);
   stk = malloc(size);
   GOASSERT(stk);
-  newg->stack.la = (uintptr_t)stk;
-  newg->stack.ha = (uintptr_t)(stk + size);
+  newg->stack.la = (uintptr)stk;
+  newg->stack.ha = (uintptr)(stk + size);
   return newg;
 }
 
@@ -194,19 +241,19 @@ void gospawn_m(G *) {
   sp -= size;
   memmove(sp, argp, size);
 
-  newg->sched.sp = (uintptr_t)sp;
-  newg->sched.pc = (uintptr_t)goexit;
+  newg->sched.sp = (uintptr)sp;
+  newg->sched.pc = (uintptr)goexit;
   gostart(&newg->sched, fn);
-  newg->gopc = (uintptr_t)callerpc;
+  newg->gopc = (uintptr)callerpc;
 
   gput(p, newg);
 }
 
 void gospawn1(Go_Func fn, int size, void *argp, void *callerpc) {
-  g->m->arg[0] = (uintptr_t)fn;
-  g->m->arg[1] = (uintptr_t)size;
-  g->m->arg[2] = (uintptr_t)argp;
-  g->m->arg[3] = (uintptr_t)callerpc;
+  g->m->arg[0] = (uintptr)fn;
+  g->m->arg[1] = (uintptr)size;
+  g->m->arg[2] = (uintptr)argp;
+  g->m->arg[3] = (uintptr)callerpc;
   mcall(gospawn_m);
 }
 
@@ -224,4 +271,6 @@ void mstart(void) {
   schedule();
 }
 
-void schedule(void) {}
+void schedule(void) {
+  // TODO:
+}

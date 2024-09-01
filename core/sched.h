@@ -5,10 +5,9 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-
 #include "../include/go/core.h"
 #include "lock.h"
+#include "types.h"
 
 typedef struct G G;
 typedef struct M M;
@@ -36,45 +35,43 @@ struct Sched {
 };
 
 struct Stack {
-  uintptr_t la;
-  uintptr_t ha;
-  // Members above is hard-coded
+  uintptr la;
+  uintptr ha;
 };
 
 struct Gobuf {
-  uintptr_t sp;
-  uintptr_t pc;
-  uintptr_t lr;  // Linker register for arm64
-  uintptr_t ctx;
-  uintptr_t g;  // The G switched to
-  // Members above is hard-coded
+  uintptr sp;
+  uintptr pc;
+  uintptr lr;  // Linker register for arm64
+  uintptr ctx;
+  uintptr g;  // The G switched to
 };
 
 struct G {
   Gobuf sched;
   Stack stack;
   M *m;
-  // Members above is hard-coded
   G *prev;
   G *next;
   G *allgnext;
   int status;
-  uintptr_t gopc;
+  uintptr gopc;
 };
 
 struct M {
   G *g0;
   P *p;
-  // // Members above is hard-coded
   M *next;
   int tid;
-  uintptr_t arg[6];
+  uintptr arg[6];
 };
 
 struct P {
   P *next;
   M *m;
   G *g[256];
+  int ghead;
+  int gtail;
   G *gfree;
   int ngfree;
   int status;

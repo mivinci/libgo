@@ -1,6 +1,31 @@
 #include "asm.h"
 
 .text
+.globl atomiccas
+atomiccas:
+  mov      %rsi, %rax
+  lock
+  cmpxchg  %rdx, (%rdi)
+  sete     %al
+  movzbl   %al, %eax
+  ret
+
+
+.text
+.globl atomicstore
+atomicstore:
+  xchg  %rsi,  (%rdi)
+  ret
+
+
+.text
+.globl atomicload
+atomicload:
+  mov  (%rdi), %rax
+  ret
+
+
+.text
 .globl goboot
 goboot:
   // int goboot(Go_Func entry, int argc, char **argv)
