@@ -90,7 +90,7 @@ gospawn:
   cmp  $48,  %rax
   jg   1f
   mov  $48,  %rax
-  
+
 1:
   // callerpc = (RA - 5)
   // 5 is the size that instruction `call gospawn1` takes
@@ -113,15 +113,81 @@ gospawn:
 .text
 .globl gosave
 gosave:
-  mov $0, %rax
+  // int gosave(Gobuf *buf)
+
+  // Save SP
+  // buf.sp = %rsp
+  mov  %rsp,  Gobuf_sp(%rdi)
+
+  // Save RA
+  // buf.pc = RA
+  mov  (%rsp),  %rdx          # %rdx = RA
+  mov  %rdx,  Gobuf_pc(%rdi)  # buf.pc = %rdx
+
+  // Save callee-saved registers
+  mov  Gobuf_ctx(%rdi),  %rdx  # %rdx = buf.ctx
+  mov  %rbx,    (%rdx)
+  mov  %rbp,   8(%rdx)
+  mov  %r12,  16(%rdx)
+  mov  %r13,  24(%rdx)
+  mov  %r14,  32(%rdx)
+  mov  %r15,  40(%rdx)
+  
+  // Return 0
+  mov  $0, %rax
   ret
 
 
 .text
 .globl gogo
 gogo:
-  mov  $0, %rax
-  ret
+  // void gogo(Gobuf *buf)
+
+  // Restore SP
+  mov  Gobuf_sp(%rdi),  %rsp
+  
+  // if (buf.ctx == NULL) {
+  //   restore arguments
+  //   restore RA
+  // }
+  mov  Gobuf_ctx(%rdi),  %rax
+  cmp  $0,               %rax
+  jne  1f
+
+  // buf.ctx == NULL means we are scheduling this G for 
+  // the first time, And gospawn has given us argp == buf.sp+1
+  mov  Gobuf_sp(%rdi),  %rdx  # %rdx = buf.sp
+  lea  8(%rdx),         %rdx  # %rdx = argp
+
+  // Restore arguments passed by gospawn from stack 
+  // to registers.
+  mov   8(%rdx),  %rdi
+  mov  16(%rdx),  %rsi
+  mov  24(%rdx),  %rdx
+  mov  32(%rdx),  %rcx
+  mov  40(%rdx),  %r8
+  mov  48(%rdx),  %r9
+
+  // Rrestore RA
+  mov  Gobuf_sp(%rdi),  %rdx      # %rdx = buf.sp
+  mov  (%rdx),          %rdx      # %rdx = RA
+  mov  %rdx,            48(%rsp)
+  add  $48,             %rsp
+
+1:
+  // Restore callee-saved registers
+  mov  Gobuf_ctx(%rdi),  %rdx  # %rdx = buf.ctx
+  mov   (%rdx),   %rbx
+  mov  8(%rdx),   %rbp
+  mov  16(%rdx),  %r12
+  mov  24(%rdx),  %r13
+  mov  32(%rdx),  %r14
+  mov  40(%rdx),  %r15
+  
+  // Restore PC
+  mov  $1,  %rax
+  mov  Gobuf_pc(%rdi), %rdx
+  jmp  *%rdx
 
 
 .text
@@ -136,18 +202,23 @@ gostart:
   // gobuf.pc = goexit
 
   // buf.sp -= 1
+  mov  (Gobuf_sp)(%rdi),  %rdx              # %rdx = buf.sp
+  lea  -8(%rdx),          %rdx              # %rdx = buf.sp - 1
+  mov  %rdx,              (Gobuf_sp)(%rdi)  # buf.sp = %rbx
+  
   // buf.sp = buf.pc (goexit)
-  lea  (-8+Gobuf_sp)(%rdi),  %rdx              # %rdx = buf.sp - 1
-  mov  %rdx,                 (Gobuf_sp)(%rdi)  # buf.sp = %rbx
-  mov  Gobuf_pc(%rdi),       %rdx              # %rbx = buf.pc
-  mov  %rdx,                 Gobuf_sp(%rdi)    # buf.sp = %rbx 
+  mov  Gobuf_pc(%rdi),       %rdx            # %rbx = buf.pc
+  mov  %rdx,                 Gobuf_sp(%rdi)  # buf.sp = %rbx 
 
   // buf.pc = fn
   mov  %rsi,     Gobuf_pc(%rdi)  # buf.pc = fn
 
-  // buf.ctx = buf.sp + 1
-  lea  (8+Gobuf_sp)(%rdi),  %rax
-  mov  %rax,                Gobuf_ctx(%rdi)
+  // buf.ctx = NULL
+  // indicating the gogo that this G hasn't been scheduled yet
+  // so it'll restore arguments passed by gospawn from stack 
+  // to registers
+  mov  $0,    %rax
+  mov  %rax,  Gobuf_ctx(%rdi)
 
   // buf.g = NULL
   mov  $0,    %rax

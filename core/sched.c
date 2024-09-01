@@ -176,8 +176,8 @@ void gospawn_m(G *) {
   argp = (void *)(g->m->arg[2]);
   callerpc = (void *)(g->m->arg[3]);
 
-  // Round up to 8 bytes
-  size = (size + 7) & ~7;
+  // Round up to 16 bytes
+  size = (size + 15) & ~15;
 
   // GOPTRSIZ is to store LR (arm64) or RA (x86_64)
   // 256 is to leave extra space for no reason

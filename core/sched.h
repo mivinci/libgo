@@ -84,7 +84,7 @@ extern void mcall(void (*)(G *)) __asm__("mcall");
 extern void gospawn(Go_Func, ...) __asm__("gospawn");
 extern void gostart(Gobuf *, Go_Func) __asm__("gostart");
 extern int gosave(Gobuf *) __asm__("gosave");
-extern int gogo(Gobuf *) __asm__("gogo");
+extern void gogo(Gobuf *) __asm__("gogo");
 void goexit(void);
 void mstart(void);
 void schedule(void);
