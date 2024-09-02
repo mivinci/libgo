@@ -77,21 +77,19 @@ gospawn:
   mov  %rbp,  %rax
   sub  %rdx,  %rax
 
-  // if (size > 256) {
-  //   size = 256;
-  // }
-  cmp  $256,  %rax
-  jl   1f
-  mov  $256,  %rax
-
-  // if (size < 48) {
-  //   size = 48;
-  // }
-  cmp  $48,  %rax
+  // if (size < 48) size = 48;
+  // else if (size > 256) size = 256;
+  cmp  $47,  %rax
   jg   1f
   mov  $48,  %rax
+  jmp  2f
 
 1:
+  cmp  $256,  %rax
+  jle  2f
+  mov  $256,  %rax
+
+2:
   // callerpc = (RA - 5)
   // 5 is the size that instruction `call gospawn1` takes
   // on x86_64
