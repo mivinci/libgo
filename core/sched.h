@@ -32,6 +32,8 @@ struct Sched {
   // Idle Ps
   P *pidle;
   int npidle;
+
+  int np;
 };
 
 struct Stack {
@@ -75,6 +77,7 @@ struct P {
   G *gfree;
   int ngfree;
   int status;
+  int tick;
 };
 
 extern void mcall(void (*)(G *)) __asm__("mcall");
@@ -84,7 +87,6 @@ extern int gosave(Gobuf *) __asm__("gosave");
 extern void gogo(Gobuf *) __asm__("gogo");
 void goexit(void);
 void mstart(void);
-void schedule(void);
 
 #ifdef __cplusplus
 };

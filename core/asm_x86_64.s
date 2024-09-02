@@ -13,17 +13,19 @@ goboot:
   // argv because rdx is not used during the call
   mov  %rdi, 0(%rsp)
   mov  %rsi, 8(%rsp)
+  mov  %rdx, 16(%rsp)
 
   // Setup globals
-  mov  %rsp, %rdi
-  call setup_g0m0
-  call setup_sys
-  call setup_sched
+  mov   %rsp, %rdi
+  call  setup_g0m0
+  call  setup_sys
+  call  setup_sched
 
   // Create the first G to run `entry`
-  mov  8(%rsp), %rsi  # rdx = argc
-  mov  0(%rsp), %rdi  # rsi = entry
-  call gospawn
+  mov  16(%rsp), %rdx  # %rdx = argv
+  mov   8(%rsp), %rsi  # %rdx = argc
+  mov   0(%rsp), %rdi  # %rsi = entry
+  call  gospawn
   
   // Start this M (m0 - the first scheduling thread)
   // and we are never coming back unless error.
@@ -141,51 +143,53 @@ gosave:
 gogo:
   // void gogo(Gobuf *buf)
 
+  // %rdi will change during gogo
+  mov  %rdi,  %r10
+
   // Restore SP
-  mov  Gobuf_sp(%rdi),  %rsp
+  mov  Gobuf_sp(%r10),  %rsp
   
   // if (buf.ctx == NULL) {
   //   restore arguments
   //   restore RA
   // }
-  mov  Gobuf_ctx(%rdi),  %rax
+  mov  Gobuf_ctx(%r10),  %rax
   cmp  $0,               %rax
   jne  1f
 
   // buf.ctx == NULL means we are scheduling this G for 
   // the first time, And gospawn has given us argp == buf.sp+1
-  mov  Gobuf_sp(%rdi),  %rdx  # %rdx = buf.sp
-  lea  8(%rdx),         %rdx  # %rdx = argp
 
   // Restore arguments passed by gospawn from stack 
   // to registers.
-  mov   8(%rdx),  %rdi
-  mov  16(%rdx),  %rsi
-  mov  24(%rdx),  %rdx
-  mov  32(%rdx),  %rcx
-  mov  40(%rdx),  %r8
-  mov  48(%rdx),  %r9
+  mov  16(%rsp),  %rdi
+  mov  24(%rsp),  %rsi
+  mov  32(%rsp),  %rdx
+  mov  40(%rsp),  %rcx
+  mov  48(%rsp),  %r8
+  mov  56(%rsp),  %r9
 
   // Rrestore RA
-  mov  Gobuf_sp(%rdi),  %rdx      # %rdx = buf.sp
-  mov  (%rdx),          %rdx      # %rdx = RA
-  mov  %rdx,            48(%rsp)
+  mov  (%rsp),          %rax      # %rax = RA
+  mov  %rax,            48(%rsp)  
   add  $48,             %rsp
+  jmp  2f
 
 1:
   // Restore callee-saved registers
-  mov  Gobuf_ctx(%rdi),  %rdx  # %rdx = buf.ctx
-  mov   (%rdx),   %rbx
-  mov  8(%rdx),   %rbp
-  mov  16(%rdx),  %r12
-  mov  24(%rdx),  %r13
-  mov  32(%rdx),  %r14
-  mov  40(%rdx),  %r15
+  mov  Gobuf_ctx(%r10),  %rax  # %rax = buf.ctx
+  mov   (%rax),   %rbx
+  mov  8(%rax),   %rbp
+  mov  16(%rax),  %r12
+  mov  24(%rax),  %r13
+  mov  32(%rax),  %r14
+  mov  40(%rax),  %r15
   
+2:
   // Restore PC
   mov  $1,  %rax
-  mov  Gobuf_pc(%rdi), %rdx
-  jmp  *%rdx
+  mov  Gobuf_pc(%r10), %r10
+  jmp  *%r10
 
 
 .text
@@ -205,8 +209,8 @@ gostart:
   mov  %rdx,              (Gobuf_sp)(%rdi)  # buf.sp = %rbx
   
   // buf.sp = buf.pc (goexit)
-  mov  Gobuf_pc(%rdi),       %rdx            # %rbx = buf.pc
-  mov  %rdx,                 Gobuf_sp(%rdi)  # buf.sp = %rbx 
+  mov  Gobuf_pc(%rdi),    %rcx    # %rbx = buf.pc  
+  mov  %rcx,              (%rdx)  # buf.sp = %rbx 
 
   // buf.pc = fn
   mov  %rsi,     Gobuf_pc(%rdi)  # buf.pc = fn
