@@ -15,7 +15,7 @@ file(GLOB_RECURSE test_sources "**/*_test.c++")
 
 add_custom_target(
   gen ALL
-  COMMAND make -C ${CMAKE_CURRENT_SOURCE_DIR}/gen
+  COMMAND make -C ${CMAKE_CURRENT_SOURCE_DIR}/scripts
   COMMENT "Generating code from template"
 )
 

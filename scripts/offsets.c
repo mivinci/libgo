@@ -1,13 +1,16 @@
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "../core/sched.h"
 
-int main(void) {
+int main(int argc, char **argv) {
   FILE *fp;
   int n;
 
-  fp = fopen("offsets.h", "w");
+  assert(argc == 2);
+
+  fp = fopen(argv[1], "w");
   assert(fp);
 
   n = fprintf(fp,
