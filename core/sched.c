@@ -184,7 +184,7 @@ static G *gget(P *p) {
     t = p->gtail;
     if (t == h) return NULL;
     gp = p->g[h & LEN(p->g)];
-    if (Atomic_cas(&p->ghead, h, h + 1)) return gp;
+    if (Atomic_cas(&p->ghead, &h, h + 1)) return gp;
   }
 }
 
@@ -210,7 +210,7 @@ static G *malg(int size) {
 }
 
 // gospawn continuation on M
-void gospawn_m(G *) {
+void gospawn_m(G *gp __attribute__((unused))) {
   Go_Func fn;
   int size;
   void *argp, *callerpc;
