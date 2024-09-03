@@ -31,7 +31,7 @@ goboot:
   // and we are never coming back unless error.
   call mstart
 
-  // This is unreachable if _mstart works right. And
+  // This is unreachable if mstart works right. And
   // if it doesn't, we have to notify the caller to
   // exit by returning 1 to it. (we don't use -1 or 
   // 0 here because the caller may return this value
@@ -40,6 +40,7 @@ goboot:
   // Release stack
   add  $32,  %rsp
   pop  %rbp
+
   // Return 1
   mov  $1,   %rax
   ret
@@ -186,6 +187,10 @@ gogo:
   mov  40(%rax),  %r15
   
 2:
+  // Set the current G
+  mov  Gobuf_g(%r10), %rax
+  mov  %rax,          %fs:g@tpoff
+
   // Restore PC
   mov  $1,  %rax
   mov  Gobuf_pc(%r10), %r10
@@ -221,10 +226,6 @@ gostart:
   // to registers
   mov  $0,    %rax
   mov  %rax,  Gobuf_ctx(%rdi)
-
-  // buf.g = NULL
-  mov  $0,    %rax
-  mov  %rax,  (Gobuf_g)(%rdi)
   
   ret
 
@@ -241,7 +242,8 @@ mcall:
   cmp  %rdi,         %rcx
   je   1f
 
-  // Save SP and the current G
+  // Save SP to g.sched.sp
+  // Save the current G to g.m.g0.sched.g
   mov  %rsp,  (G_sched+Gobuf_sp)(%rdi)  # g.sched.sp = %rsp
   mov  %rdi,  (G_sched+Gobuf_g)(%rcx)   # g.m.g0.sched.g = g
 

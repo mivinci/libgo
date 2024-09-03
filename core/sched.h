@@ -9,6 +9,9 @@ extern "C" {
 #include "lock.h"
 #include "types.h"
 
+#define acquire(L) Lock_acquire(L)
+#define release(L) Lock_release(L)
+
 typedef struct G G;
 typedef struct M M;
 typedef struct P P;
@@ -34,6 +37,7 @@ struct Sched {
   int npidle;
 
   int np;
+  int gidgen;
 };
 
 struct Stack {
@@ -57,6 +61,7 @@ struct G {
   G *next;
   G *allgnext;
   int status;
+  int gid;
   uintptr gopc;
 };
 
@@ -80,13 +85,13 @@ struct P {
   int tick;
 };
 
-extern void mcall(void (*)(G *)) __asm__("mcall");
 extern void gospawn(Go_Func, ...) __asm__("gospawn");
 extern void gostart(Gobuf *, Go_Func) __asm__("gostart");
 extern int gosave(Gobuf *) __asm__("gosave");
 extern void gogo(Gobuf *) __asm__("gogo");
 void goexit(void);
 void mstart(void);
+extern void mcall(void (*)(G *)) __asm__("mcall");
 
 #ifdef __cplusplus
 };

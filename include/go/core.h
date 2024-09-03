@@ -35,12 +35,15 @@ extern "C" {
 #define GOEXPORT
 #endif
 
-#define GOSTKMIN 2048
+#define GOSTKMIN 4096
 #define GOPTRSIZ sizeof(void *)
 
 #define GOASSERT(e, ...) do {                                  \
   if (!(e)) Go_throw(__FILE__, __LINE__, "assert: "__VA_ARGS__); \
 } while (0)
+
+#define Go(fn, ...) Go_spawn((Go_Func)fn, __VA_ARGS__)
+#define go Go
 
 typedef void(*Go_Func)();
 GOEXPORT int Go_boot(Go_Func, int, char **) asm("goboot");

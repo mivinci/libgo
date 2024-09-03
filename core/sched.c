@@ -107,7 +107,8 @@ void acquirep(P *p) {
   p->status = kPRunning;
 }
 
-P *releasep(void) {
+// Mark as unused for now to pass -Wall
+__attribute__((unused)) P *releasep(void) {
   P *p;
 
   p = g->m->p;
@@ -118,7 +119,8 @@ P *releasep(void) {
   return p;
 }
 
-static P *pidleget(void) {
+// Mark as unused for now to pass -Wall
+__attribute__((unused)) static P *pidleget(void) {
   P *p;
 
   p = sched.pidle;
@@ -184,7 +186,8 @@ static G *globgget(P *p, int max) {
 
 // Put a G on the global queue.
 // When calling, sched.lock MUST be held.
-static void globgput(G *gp) {
+// Mark as unused for now to pass -Wall
+__attribute__((unused)) static void globgput(G *gp) {
   gp->next = NULL;
   if (sched.gtail)
     sched.gtail->next = gp;
@@ -221,9 +224,9 @@ static bool gputslow(P *p, G *gp, int h, int t) {
   for (i = 0; i < n; i++)
     batch[i]->next = batch[i + 1];
 
-  Lock_acquire(&sched.lock);
+  acquire(&sched.lock);
   globgputbatch(batch[0], batch[n], n + 1);
-  Lock_release(&sched.lock);
+  release(&sched.lock);
   return true;
 }
 
@@ -262,10 +265,10 @@ static G *gget(P *p) {
 }
 
 static void allgadd(G *gp) {
-  Lock_acquire(&allglock);
+  acquire(&allglock);
   gp->allgnext = allg;
   allg = gp;
-  Lock_release(&allglock);
+  release(&allglock);
 }
 
 static G *malg(int size) {
@@ -316,8 +319,14 @@ void gospawn_m(G *gp __attribute__((unused))) {
 
   newg->sched.sp = (uintptr)sp;
   newg->sched.pc = (uintptr)goexit;
+  newg->sched.g = (uintptr)newg;  // Gobuf.g is used by gogo  
   gostart(&newg->sched, fn);
   newg->gopc = (uintptr)callerpc;
+
+  // Go pre-generates a batch of goids here.
+  // We don't do that for now.
+  // At startup sched.gidgen=0, so main G receives gid=1
+  newg->gid = Atomic_add(&sched.gidgen, 1);
 
   gput(p, newg);
 }
@@ -330,7 +339,17 @@ void gospawn1(Go_Func fn, int size, void *argp, void *callerpc) {
   mcall(gospawn_m);
 }
 
-void goexit(void) {}
+void goexit_m(G *gp) {
+  gp->status = kGDead;
+  gp->m = NULL;
+
+  gfput(g->m->p, gp);  // NOTE: here g is always g0
+  schedule();
+}
+
+void goexit(void) {
+  mcall(goexit_m);
+}
 
 void mstart(void) {
   GOASSERT(g == g->m->g0, "Bad g running mstart");
@@ -357,9 +376,9 @@ top:
 
   // Try global queue
   if (sched.ng) {
-    Lock_acquire(&sched.lock);
+    acquire(&sched.lock);
     gp = globgget(g->m->p, 0);
-    Lock_release(&sched.lock);
+    release(&sched.lock);
     if (gp)
       return gp;
   }
@@ -379,9 +398,9 @@ top:
   // Try the global queue every 61 schedules for a P
   // to ensure fairness.
   if (g->m->p->tick % 61 == 0 && sched.ng > 0) {
-    Lock_acquire(&sched.lock);
+    acquire(&sched.lock);
     gp = globgget(g->m->p, 1);
-    Lock_release(&sched.lock);
+    release(&sched.lock);
   }
   if (!gp)
     gp = findrunnable();
